@@ -17,28 +17,14 @@ import orjson
 import pyromark
 import tqdm
 from frontmatter import loads
-from bs4 import BeautifulSoup
-from jinja2 import (
-    Environment,
-    FileSystemBytecodeCache,
-    FileSystemLoader,
-    Template,
-    meta,
-    nodes,
-)
+from jinja2 import (Environment, FileSystemBytecodeCache, FileSystemLoader,
+                    Template, meta, nodes)
 from jinja2.visitor import NodeVisitor
 from toposort import toposort_flatten
 from yaml.reader import ReaderError
-from collections import defaultdict
 
-from .date_helpers import (
-    archive_date,
-    date_to_xml_string,
-    list_archive_date,
-    long_date,
-    month_number_to_written_month,
-    year,
-)
+from .date_helpers import (archive_date, date_to_xml_string, list_archive_date,
+                           long_date, month_number_to_written_month, year)
 
 module_dir = os.getcwd()
 os.chdir(module_dir)
@@ -50,20 +36,11 @@ normalized_collection_permalinks = {}
 # print all logs
 logging.basicConfig(level=logging.INFO)
 
-from config import (
-    BASE_URL,
-    HOOKS,
-    LAYOUTS_BASE_DIR,
-    ROOT_DIR,
-    SITE_DIR,
-    SITE_STATE,
-    SITE_ENV,
-)
+from config import (BASE_URL, HOOKS, LAYOUTS_BASE_DIR, ROOT_DIR, SITE_DIR,
+                    SITE_STATE, SITE_ENV)
 
 ALLOWED_EXTENSIONS = ["html", "md", "css", "js", "txt", "xml"]
 
-saved_pages = set()
-permalinks = defaultdict(list)
 all_data_files = {}
 all_pages = []
 all_opened_pages = {}
@@ -117,12 +94,11 @@ for file_name, hooks in HOOKS.get("post_build", {}).items():
 today = datetime.datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
 state = {
     "posts": [],
-    "backlinks": defaultdict(list),
     "root_url": BASE_URL,
     "build_date": today.strftime("%m-%d"),
     "pages": [],
     "build_timestamp": datetime.datetime.now().isoformat(),
-    "environment": SITE_ENV,
+    "environment": SITE_ENV
 }
 
 file_extensions = {}
@@ -215,6 +191,7 @@ def get_file_dependencies_and_evaluated_contents(
     1. Other files that are included in the file, and;
     2. Variables whose values are defined by the site generator (i.e. `site.*`).
     """
+
     template = JINJA2_ENV.parse(all_page_contents[file_name])
 
     includes = []
@@ -260,6 +237,11 @@ def get_file_dependencies_and_evaluated_contents(
         parsed_content["has_user_assigned_permalink"] = True
         parsed_content["url"] = f"{BASE_URL}/{parsed_content['permalink'].strip('/')}/"
 
+    url_path = file_name.split("/")
+    if not parsed_content.get("has_user_assigned_permalink") and len(url_path) > 3: # Hack to check for nested pages
+      url_path = url_path[2:-1]
+      url_path.append(parsed_content["slug"])
+      parsed_content['permalink'] = '/'.join(url_path)
     parsed_content[
         "permalink"
     ] = f"/{parsed_content.get('permalink', parsed_content['slug']).strip('/')}/"
@@ -322,10 +304,9 @@ def get_file_dependencies_and_evaluated_contents(
                 len(state[parsed_content["layout"] + "s"]) - 1
             )
         else:
-            if (
-                len(state[parsed_content["layout"] + "s"])
-                > layout_permalinks_to_idx[parsed_content["permalink"]]
-            ):
+            if len(state[parsed_content["layout"] + "s"]) > layout_permalinks_to_idx[
+                parsed_content["permalink"]
+            ]:
                 state[parsed_content["layout"] + "s"][
                     layout_permalinks_to_idx[parsed_content["permalink"]]
                 ] = parsed_content
@@ -383,7 +364,7 @@ def recursively_build_page_template_with_front_matter(
     front_matter: dict,
     state: dict,
     current_contents: str = "",
-    level: int = 0,
+    level: int = 0
 ) -> str:
     """
     Recursively build a page template with front matter.
@@ -402,7 +383,7 @@ def recursively_build_page_template_with_front_matter(
         layout_path = f"{ROOT_DIR}/{LAYOUTS_BASE_DIR}/{layout}.html"
 
         front_matter.metadata = interpolate_front_matter(front_matter.metadata, state)
-
+    
         page_fm = type("Page", (object,), front_matter.metadata)()
 
         current_contents = loads(
@@ -426,7 +407,7 @@ def recursively_build_page_template_with_front_matter(
     return current_contents
 
 
-def render_page(file: str, skip_hooks=False) -> None:
+def render_page(file: str) -> None:
     """
     Render a page with the Aurora static site generator.
     """
@@ -436,7 +417,7 @@ def render_page(file: str, skip_hooks=False) -> None:
     try:
         contents = all_opened_pages[file]
     except Exception as e:
-        print(f"Error reading {file}")
+        # print(f"Error reading {file}")
         # raise e
         return
 
@@ -446,7 +427,7 @@ def render_page(file: str, skip_hooks=False) -> None:
 
     if all_parsed_pages[file].get("skip"):
         return
-
+    
     slug = file.split("/")[-1].replace(".html", "")
 
     slug = slug.replace("posts/", "")
@@ -454,12 +435,8 @@ def render_page(file: str, skip_hooks=False) -> None:
     has_user_assigned_permalink = all_parsed_pages[file].metadata.get(
         "has_user_assigned_permalink"
     )
-
     page_state["page"] = all_parsed_pages[file].metadata
     page_state["post"] = all_parsed_pages[file].metadata
-
-    if not page_state["page"].get("permalink"):
-        page_state["page"]["permalink"] = slug  # .strip("/")
 
     page_state["page"]["generated_on"] = datetime.datetime.now()
 
@@ -484,18 +461,25 @@ def render_page(file: str, skip_hooks=False) -> None:
     if page_state.get("date"):
         date = page_state["date"]
         slug = re.sub(r"\d{4}-\d{2}-\d{2}-", "", file)
-        slug = slug.replace("pages/posts/", "").replace(".md", "").replace(".html", "")
+        slug = (
+            slug.replace("pages/posts/", "").replace(".md", "").replace(".html", "")
+        )
         page_state["page"]["slug"] = slug
-        page_state["page"]["url"] = f"{BASE_URL}/{date.strftime('%Y/%m/%d')}/{slug}/"
+        page_state["page"][
+            "url"
+        ] = f"{BASE_URL}/{date.strftime('%Y/%m/%d')}/{slug}/"
     else:
         page_state["page"]["url"] = f"{BASE_URL}/{slug}/"
 
     page_state["url"] = page_state["page"]["url"]
 
-    if file == "pages/templates/index.html":
-        page_state["url"] = BASE_URL
-        page_state["page"]["url"] = BASE_URL
-        page_state["page"]["permalink"] = BASE_URL
+    # Special index.html handling
+    if file.startswith('pages/templates') and file.endswith('index.html'):
+        url = file.replace('pages/templates', '')
+        url = url.replace('/index.html', '')
+        page_state["url"] = BASE_URL + url
+        page_state["page"]["url"] = BASE_URL + url
+        page_state["page"]["permalink"] = BASE_URL + url
 
     if not page_state.get("categories"):
         page_state["categories"] = []
@@ -523,17 +507,16 @@ def render_page(file: str, skip_hooks=False) -> None:
     except Exception as e:
         # print(f"Error rendering {file}")
         return
-
+    
     page_state["page"].template = file
 
     rendered = recursively_build_page_template_with_front_matter(
         file, all_parsed_pages[file], page_state, contents
     )
 
-    if not skip_hooks:
-        for _, hooks in EVALUATED_POST_TEMPLATE_GENERATION_HOOKS.items():
-            for hook in hooks:
-                rendered = hook(file, page_state, state, rendered)
+    for hook, hooks in EVALUATED_POST_TEMPLATE_GENERATION_HOOKS.items():
+        for hook in hooks:
+            rendered = hook(file, page_state, state, rendered)
 
     file = file.replace(ROOT_DIR + "/", "")
 
@@ -546,8 +529,12 @@ def render_page(file: str, skip_hooks=False) -> None:
     permalink = file
 
     # if permalink is _site/templates/index.html, make it _site/index.html
-    if file == "templates/index.html":
-        path = os.path.join(SITE_DIR, "index.html")
+    if file.endswith('index.html'):
+        f_path = file.replace("templates", "").replace("/index.html", "").lstrip("/")
+        dir = os.path.join(SITE_DIR, f_path)
+        path = os.path.join(dir, "index.html")
+        if not os.path.isdir(dir):
+          os.mkdir(dir)
         if os.path.exists(path):
             os.remove(path)
         with open(path, "w") as f:
@@ -570,30 +557,20 @@ def render_page(file: str, skip_hooks=False) -> None:
         permalink = file.replace("templates/", "")
 
     permalink_without_index = permalink.split("index.html")[0]
-    final_url = f"{BASE_URL}/{permalink_without_index.rstrip('/')}/"
 
-    if final_url not in saved_pages:
-        state["pages"].append(
-            {
-                "url": final_url,
-                "file": file,
-                "rendered_html": contents,
-                "noindex": True
-                if hasattr(page_state.get("page"), "noindex")
-                else False,
-                "private": True
-                if hasattr(page_state.get("page"), "private")
-                else False,
-                "title": (
-                    page_state["page"].title
-                    if page_state.get("page") and hasattr(page_state["page"], "title")
-                    else ""
-                ),
-            }
-        )
-        saved_pages.add(final_url)
-
-    permalinks[permalink].append(file)
+    state["pages"].append(
+        {
+            "url": f"{BASE_URL}/{permalink_without_index.rstrip('/')}/",
+            "file": file,
+            "rendered_html": contents,
+            "noindex": True if hasattr(page_state.get("page"), "noindex") else False,
+            "title": (
+                page_state["page"].title
+                if page_state.get("page") and hasattr(page_state["page"], "title")
+                else ""
+            ),
+        }
+    )
 
     permalink = os.path.join(SITE_DIR, permalink)
 
@@ -644,7 +621,7 @@ def generate_date_page_given_year_month_date(
         posts=date_archive_state["posts"],
         page=date_archive_state,
     )
-
+    
     if not date_archive_state.get("page"):
         date_archive_state["page"] = {}
 
@@ -967,7 +944,7 @@ def load_data_from_data_files(deps: list, data_file_integrity: dict) -> list:
         collections_to_files[data_dir] = []
         idx = 0
         print(f"Loading data from {data_file}...")
-
+        
         for record in tqdm.tqdm(all_data_files[data_file]):
             if not record.get("slug"):
                 # print(
@@ -996,9 +973,7 @@ def load_data_from_data_files(deps: list, data_file_integrity: dict) -> list:
             try:
                 contents = "---\n" + record_as_string + "\n---\n"
                 loaded_contents = loads(contents)
-                loaded_contents["skip"] = data_dir in SITE_STATE.get(
-                    "disable_collection_single_page_generation", {}
-                )
+                loaded_contents["skip"] = data_dir in SITE_STATE.get("disable_collection_single_page_generation", {})
                 all_opened_pages[path] = contents
                 all_page_contents[path] = loaded_contents
                 all_parsed_pages[path] = loaded_contents
@@ -1062,6 +1037,7 @@ def main(deps: list = [], watch: bool = False, incremental: bool = False) -> Non
             if ext not in ALLOWED_EXTENSIONS:
                 continue
 
+            
             all_pages.append(os.path.join(root, file))
 
     for page in all_pages:
@@ -1069,7 +1045,7 @@ def main(deps: list = [], watch: bool = False, incremental: bool = False) -> Non
             continue
 
         contents = read_file(page)
-
+        
         try:
             if page.endswith(".md"):
                 all_opened_pages[page] = contents
@@ -1077,92 +1053,10 @@ def main(deps: list = [], watch: bool = False, incremental: bool = False) -> Non
                 all_opened_pages[page] = JINJA2_ENV.from_string(contents)
 
             all_page_contents[page] = loads(contents)
-
-            if SITE_STATE.get("enable_backlinks"):
-                page_links = BeautifulSoup(
-                    pyromark.html(contents), "html.parser"
-                ).find_all("a", href=True)
-
-                # if in posts/, assign permalink
-                if page.startswith("pages/posts/"):
-                    # permalink should be YYYY-MM-DD-slug.md turned into /YYYY/MM/DD/slug/
-                    yyyy_mm_dd = re.search(r"\d{4}-\d{2}-\d{2}", page)
-                    if yyyy_mm_dd:
-                        yyyy_mm_dd = yyyy_mm_dd.group(0)
-                        slug = page.split(yyyy_mm_dd)[1].replace(".md", "")[1:]
-                        yyyy_mm_dd_slug = f"{yyyy_mm_dd.replace('-', '/')}/{slug}"
-
-                    all_page_contents[page].metadata[
-                        "permalink"
-                    ] = f"/{yyyy_mm_dd_slug.strip('/')}/"
-
-                all_page_contents[page].metadata["outgoing_links"] = page_links
         except Exception as e:
             # logging.debug(f"Error reading {page}", level=logging.CRITICAL)
             # pass
             raise e
-
-    if SITE_STATE.get("enable_backlinks"):
-        for page in all_opened_pages:
-            for link in all_page_contents[page].metadata.get("outgoing_links", []):
-                state["backlinks"][link["href"]].append(
-                    {
-                        "url": all_page_contents[page].metadata.get("permalink"),
-                        "title": all_page_contents[page].metadata.get("title", ""),
-                    }
-                )
-
-    # sort all_opened_pages alpha
-    all_opened_pages_sorted = list(sorted(all_page_contents.items()))
-    # reverse so that we can get next and previous
-    all_opened_pages_sorted.reverse()
-
-    for i, page in enumerate(all_opened_pages_sorted):
-        # add next and previous page
-        if i < len(all_opened_pages_sorted) - 1:
-            all_page_contents[page[0]].metadata["previous"] = {
-                "url": all_opened_pages_sorted[i + 1][1].metadata.get("permalink", ""),
-                "title": all_opened_pages_sorted[i + 1][1].metadata.get("title", ""),
-            }
-
-            previous_in_same_category = None
-            # look at all posts before i
-            for j in range(i + 1, len(all_opened_pages_sorted)):
-                # print(f"Comparing {all_opened_pages_sorted[j][1].metadata.get('categories', [])} with {page[1].metadata.get('categories', [])}")
-                if all_opened_pages_sorted[j][1].metadata.get("categories", []) == page[
-                    1
-                ].metadata.get("categories"):
-                    previous_in_same_category = all_opened_pages_sorted[j][1]
-                    break
-
-            if previous_in_same_category:
-                # print(f"Setting previous in same category for {page[1].metadata.get('title')} as {previous_in_same_category.metadata.get('title')} where next is {next_in_same_category.metadata.get('title') if next_in_same_category else None}")
-                all_page_contents[page[0]].metadata["previous_in_same_category"] = {
-                    "url": previous_in_same_category.metadata.get("permalink", ""),
-                    "title": previous_in_same_category.metadata.get("title", ""),
-                }
-
-        if i > 0:
-            all_page_contents[page[0]].metadata["next"] = {
-                "url": all_opened_pages_sorted[i - 1][1].metadata.get("permalink", ""),
-                "title": all_opened_pages_sorted[i - 1][1].metadata.get("title", ""),
-            }
-
-            next_in_same_category = None
-
-            for j in range(i - 1, -1, -1):
-                if all_opened_pages_sorted[j][1].metadata.get("categories", []) == page[
-                    1
-                ].metadata.get("categories"):
-                    next_in_same_category = all_opened_pages_sorted[j][1]
-                    break
-
-            if next_in_same_category:
-                all_page_contents[page[0]].metadata["next_in_same_category"] = {
-                    "url": next_in_same_category.metadata.get("permalink", ""),
-                    "title": next_in_same_category.metadata.get("title", ""),
-                }
-
     if deps:
         deps = set(deps)
         new_deps = []
@@ -1191,6 +1085,8 @@ def main(deps: list = [], watch: bool = False, incremental: bool = False) -> Non
             load_data_from_data_files(deps, data_file_integrity)
     else:
         load_data_from_data_files(deps, data_file_integrity)
+
+    print(deps, incremental)
 
     for page, contents in all_opened_pages.items():
         # if incremental, only recompute dependencies for changed files
@@ -1243,7 +1139,7 @@ def main(deps: list = [], watch: bool = False, incremental: bool = False) -> Non
     all_dependencies = {
         k: v for k, v in all_dependencies.items() if not k.startswith("pages/_")
     }
-
+    
     dependencies = (
         deps
         if incremental and len(deps) > 0
@@ -1260,20 +1156,16 @@ def main(deps: list = [], watch: bool = False, incremental: bool = False) -> Non
         iterator = dependencies
     else:
         iterator = tqdm.tqdm(dependencies)
-
-    iterator_set = set(iterator)
-
+    # print(dependencies)
     print("Generating pages in memory...")
 
     for file in iterator:
         if os.path.isdir(file):
             for root, _, files in os.walk(file):
                 for file in files:
-                    file_path = os.path.join(root, file)
-                    if file_path not in iterator_set:
-                        render_page(file_path, skip_hooks=watch)
+                    render_page(os.path.join(root, file))
         else:
-            render_page(file, skip_hooks=watch)
+            render_page(file)
 
     print("Saving files to disk...")
 
@@ -1299,20 +1191,17 @@ def main(deps: list = [], watch: bool = False, incremental: bool = False) -> Non
                 f.write(state_to_write[file].encode())
 
     if any(k.startswith("pages/") for k in all_dependencies):
-        if "skip_date_archive_page_generation" not in SITE_STATE:
-            process_date_archives()
-        if "skip_category_page_generation" not in SITE_STATE:
-            process_archives(
-                SITE_STATE.get("category_template", "category"),
-                "categories",
-                SITE_STATE.get("category_slug_root", "category"),
-            )
-        if "skip_tag_page_generation" not in SITE_STATE:
-            process_archives(
-                SITE_STATE.get("tag_template", "tag"),
-                "tags",
-                SITE_STATE.get("tag_slug_root", "tag"),
-            )
+        process_date_archives()
+        process_archives(
+            SITE_STATE.get("category_template", "category"),
+            "categories",
+            SITE_STATE.get("category_slug_root", "category"),
+        )
+        process_archives(
+            SITE_STATE.get("tag_template", "tag"),
+            "tags",
+            SITE_STATE.get("tag_slug_root", "tag"),
+        )
 
     for collection_name, attributes in SITE_STATE.get("paginators", {}).items():
         generate_paginated_page_for_collection(
@@ -1340,13 +1229,6 @@ def main(deps: list = [], watch: bool = False, incremental: bool = False) -> Non
 
         srv = Server()
 
-        for permalink, files in permalinks.items():
-            if len(files) > 1:
-                yellow = "\033[93m"
-                print(
-                    f"{yellow}Warning: {permalink} has multiple files: {files}{yellow}"
-                )
-
         # logging.disable(logging.INFO)
 
         print("Live reload mode enabled.\nWatching for changes...\n")
@@ -1356,10 +1238,3 @@ def main(deps: list = [], watch: bool = False, incremental: bool = False) -> Non
         srv.watch(ROOT_DIR, lambda: main(deps=[srv.watcher.filepath], incremental=True))
         srv.watch("./assets", lambda: copy_asset_to_site([srv.watcher.filepath]))
         srv.serve(root=SITE_DIR, liveport=35729, port=8000, debug=False)
-    else:
-        for permalink, files in permalinks.items():
-            if len(files) > 1:
-                yellow = "\033[93m"
-                print(
-                    f"{yellow}Warning: {permalink} has multiple files: {files}{yellow}"
-                )
